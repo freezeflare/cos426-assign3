@@ -35,10 +35,11 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////
 
 
-
+//check if ray intersects a sphere, returns a bool, also updates the info
 bool Intersect_ray_sphere(R3Ray ray, R3Sphere* s, R3Point p0, 
 		                      Update_info* info)
 {
+	 p0 = ray.Start();
 	 double x0 = p0.X();
 	 double y0 = p0.Y();
 	 double z0 = p0.Z();
@@ -92,6 +93,8 @@ bool Intersect_ray_sphere(R3Ray ray, R3Sphere* s, R3Point p0,
 	 return false;
 }
 
+//check if the ray intersect the plane given by the 4 constants, returns the t of intersection
+//if no intersection then return -1
 double Intersect_plane(R3Ray ray, double a, double b, double c, double d)
 {
 	R3Vector ray_vec = ray.Vector();
@@ -115,6 +118,7 @@ double Intersect_plane(R3Ray ray, double a, double b, double c, double d)
 
 }
 
+//check if ray intersects the box, returns a bool and updates the info
 bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0, 
 		                      Update_info* info)
 {
@@ -137,13 +141,13 @@ bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0,
 	double zmin = box ->ZMin();
 	double zmax = box ->ZMax();
 
+	//check if the min/maxes are reversed
 	double temp;
 	if (xmin > xmax)
 	{
 		temp = xmin;
 		xmin = xmax;
 		xmax = temp;
-		printf("wtf\n");
 	}
 
 	if (ymin > ymax)
@@ -188,9 +192,12 @@ bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0,
 		double c = faces[i] -> C();
 		double d = faces[i] -> D();
 
+		//get the t of intersection
 		double t = Intersect_plane(ray, a, b, c, d);
+		//if "does not intersect"
 		if (t == -1) 
 		{
+			//check if the ray is within the plane
 			R3Point fst = ray.Point(0);
 			R3Point snd = ray.Point(1);
 
@@ -200,6 +207,7 @@ bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0,
 			{
 				t = 0;
 			}
+			//else it does not intersect, so we skip 
 			else
 				continue;
 		}
@@ -209,6 +217,7 @@ bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0,
 		double y = intersect.Y();
 		double z = intersect.Z();
 
+		//check if it is inside the rectangle
 		bool inside_rect = false;
 		switch (tables[i])
 		{
@@ -228,7 +237,8 @@ bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0,
 					inside_rect = true;
 				break;
 		}
-
+		
+		//update if it is
 		if (t < min_t && inside_rect)
 		{
 			min_t = t;
@@ -236,6 +246,7 @@ bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0,
 		}
 	}
 
+	//if min_t is the same, then there is nothing to update
 	if (min_t == DBL_MAX)
 		return false;
 
@@ -246,7 +257,7 @@ bool Intersect_ray_box(R3Ray ray, R3Box* box, R3Point p0,
 	return true;
 }
 
-
+//see if the ray intersects the triangle, returns a bool, also updates info to have the minimum t
 bool Intersect_triangle(R3Ray ray, vector<R3Point> triangle, Update_info* info)
 {
 	R3Point p0 = ray.Start();
@@ -295,6 +306,7 @@ bool Intersect_triangle(R3Ray ray, vector<R3Point> triangle, Update_info* info)
 }
 
 
+//see if the ray intersects all the faces in the mesh, returns a bool, also updates info
 bool Intersect_ray_mesh(R3Ray ray, R3Mesh* m, R3Point p0,
 		                      Update_info* info)
 {
@@ -333,11 +345,135 @@ bool Intersect_ray_mesh(R3Ray ray, R3Mesh* m, R3Point p0,
 
 }
 
+//check if ray intersects the cylinder, returns a bool and updates the info
+bool Intersect_ray_cylinder(R3Ray ray, R3Cylinder* cy, R3Point p0, 
+		                      Update_info* info)
+{
+	info -> t = -1;
+	R3Point start = ray.Start();
+	R3Vector ray_vec = ray.Vector();
+	R3Point cent = cy -> Center();
+	double cen_x = cent.X();
+	double cen_y = cent.Y();
+	double cen_z = cent.Z();
+
+	double x1 = start.X();
+	double z1 = start.Z();
+	double y_e = start.Y();
+	double x2 = ray_vec.X();
+	double z2 = ray_vec.Z();
+	double y_d = ray_vec.Y();
+	
+	double h = cy -> Height();
+	double r = cy -> Radius();
+
+	double a = x2 * x2 + z2 * z2;
+	double b = 2 * x2 * (x1 - cen_x) + 2 * z2 * (z1 - cen_z);
+	double c =  cen_x * cen_x - 2 * cen_x * x1 + cen_z * cen_z - 
+		2 * cen_z * z1 + x1 * x1 + z1 * z1 - r * r;
+	
+	//double c = (x1 - cen_x) * (x1 - cen_x) + (z1 - cen_z) * (z1 - cen_z) - r * r;
+
+	double time_step_1 = -1;
+	double time_step_2 = -1;
+	
+	time_step_1 = (-1 * b + sqrt(b * b - 4 * a * c))/(2 * a);
+	time_step_2 = (-1 * b - sqrt(b * b - 4 * a * c))/(2 * a);
+
+	R3Point p1 = ray.Point(time_step_1);
+	R3Point p2 = ray.Point(time_step_2);
+
+	if (p1.Y() < cen_y - h/2.0 || p1.Y() + cen_y + h/2.0)
+		time_step_1 = -1;
+	if (p2.Y() < cen_y - h/2.0 || p2.Y() + cen_y + h/2.0)
+		time_step_1 = -1;
+
+	if (time_step_1 > 0)
+	{
+		if (time_step_2 > 0)
+		{
+			if (time_step_1 > time_step_2)
+			{
+				info -> t = time_step_2;
+				info -> position = p2;
+				info -> normal = p2 - cent;
+				info -> normal.Normalize();
+			}
+			else
+			{
+				info -> t = time_step_1;
+				info -> position = p1;
+				info -> normal = p1 - cent;
+				info -> normal.Normalize();
+			}
+		}
+		else
+		{
+			info -> t = time_step_1;
+			info -> position = p1;
+			info -> normal = p1 - cent;
+			info -> normal.Normalize();
+		}
+	}
+	else if (time_step_2 > 0)
+	{
+		info -> t = time_step_2;
+		info -> position = p2;
+		info -> normal = p2 - cent;
+		info -> normal.Normalize();
+	}
+
+	//check the two circle planes
+	R3Vector norm1(0, 1, 0);
+	R3Vector norm2(0, -1, 0);
+
+	R3Point plane_pt1(cen_x, cen_y + h/2.0, cen_z);
+	R3Point plane_pt2(cen_x, cen_y - h/2.0, cen_z);
+
+	R3Plane* plane1 = new R3Plane(plane_pt1, norm1);
+	R3Plane* plane2 = new R3Plane(plane_pt2, norm2);
+
+	double end_cap_t1 = Intersect_plane(ray, plane1 -> A(), plane1 -> B(), 
+																		plane1 -> C(), plane1 -> D());
+	double end_cap_t2 = Intersect_plane(ray, plane2 -> A(), plane2 -> B(), 
+																		plane2 -> C(), plane2 -> D());
+
+	double end_cap_t = end_cap_t1;
+	if (end_cap_t1 > end_cap_t2)
+		end_cap_t = end_cap_t2;
+
+	if (end_cap_t > 0)
+	{
+		//check if it is inside the circle
+		R3Point intersect = ray.Point(end_cap_t);
+		double check = (cen_x - intersect.X()) * (cen_x - intersect.X())
+				            +(cen_z - intersect.Z()) * (cen_z - intersect.Z())
+										- r * r;
+		if (check < 0 && (end_cap_t < info -> t || info -> t < 0))
+		{
+			info -> t = end_cap_t;
+			info -> position = intersect;
+			if (end_cap_t == end_cap_t1)
+				info -> normal = norm1;
+			else 
+				info -> normal = norm2;
+			return true;
+		}
+	}
+
+	if (info -> t >= 0)
+		return true;
+	return false;
+
+
+}
+
+//the overall fucntion that calls different functions for different shape types
 bool DoIntersect(R3Ray ray, R3Node* node, Update_info* cur_info, R3Point p0)
 {
 	R3Shape* shape = node -> shape;
 
-	if (shape == 0x0)
+	if (shape == NULL)
 		return false;
 	if (shape -> type == R3_BOX_SHAPE)
 	{
@@ -351,14 +487,28 @@ bool DoIntersect(R3Ray ray, R3Node* node, Update_info* cur_info, R3Point p0)
 	{
 		return Intersect_ray_mesh(ray, shape -> mesh, p0, cur_info);
 	}
+	else if (shape -> type == R3_CYLINDER_SHAPE)
+		return Intersect_ray_cylinder(ray, shape -> cylinder, p0, cur_info);
 
 	return false;
 }
 
-
+//recursive function to go through a scene
 R3Intersect Traverse_scene(R3Ray ray, R3Node* node, R3Intersect cur_best, R3Point p0)
 {
+	R3Ray orig_ray = ray;
+	R3Vector orig_vector = orig_ray.Vector();
+	R3Point orig_start = orig_ray.Start();
+	double orig_x = orig_start.X();
+	double orig_y = orig_start.Y();
+	double orig_z = orig_start.Z();
+
 	vector<R3Node*> cur_child = node -> children;
+	R3Matrix trans = node -> transformation;
+	R3Matrix trans_inv = trans.Inverse();
+	ray.Transform(trans_inv);
+	R3Point new_p0 = ray.Start();
+
 	//end case
 	if (cur_child.size() == 0)
 	{
@@ -367,16 +517,43 @@ R3Intersect Traverse_scene(R3Ray ray, R3Node* node, R3Intersect cur_best, R3Poin
 
 	for(unsigned int i = 0; i < cur_child.size(); i++)
 	{
+	  /*Update_info bbox_info;
+
+		if (Intersect_ray_box(ray, &(cur_child[i] -> bbox), p0, &bbox_info))
+		{
+
+			if (bbox_info.t > cur_best.info.t)
+				continue;
+		}*/
+		
+
+			
 		Update_info cur_info;
+
+
 
 		if (DoIntersect(ray, cur_child[i], &cur_info, p0))
 		{
+			double new_t = 0;
+			cur_info.position.Transform(trans);
+			cur_info.normal.Transform(trans);
+			//calculate new t
+			if (orig_x != 0)
+				new_t = (cur_info.position.X() - orig_x)/orig_vector.X();
+			else if (orig_y != 0)
+				new_t = (cur_info.position.Y() - orig_y)/orig_vector.Y();
+			else 
+				new_t = (cur_info.position.Z() - orig_z)/orig_vector.Z();
+
 			//update the minimum info
-			if (cur_info.t < cur_best.info.t)
+			if (new_t < cur_best.info.t && new_t > 0)
 			{
-				cur_best.info.t = cur_info.t;
+				cur_best.info.t = new_t; 
 				cur_best.info.position = cur_info.position;
 				cur_best.info.normal = cur_info.normal;
+				cur_best.info.normal.Normalize();
+				
+
 				cur_best.node = cur_child[i];
 			}
 		}
@@ -385,8 +562,7 @@ R3Intersect Traverse_scene(R3Ray ray, R3Node* node, R3Intersect cur_best, R3Poin
 	return cur_best;
 }
 
-
-
+//function that calls the recursive scene traversal function
 R3Intersect Intersect_scene(R3Ray* ray, R3Scene* scene)
 {
 	R3Node* root = scene -> Root();
@@ -406,29 +582,37 @@ R3Intersect Intersect_scene(R3Ray* ray, R3Scene* scene)
 	return new_min_info;
 }
 
-R3Rgb Phong(R3Scene* scene, R3Ray* ray, R3Intersect* info)
+//returns the Phong illumination
+R3Rgb Phong(R3Scene* scene, R3Ray* ray, R3Intersect* info, double u, double v,
+		        int max_depth, int cur_depth, bool hard_shadow)
 {
-	R3Rgb kd = info -> node -> material -> kd;
-	R3Rgb ka = info -> node -> material -> ka;
-	R3Rgb ks = info -> node -> material -> ks;
-	double shininess = info -> node -> material -> shininess;
+	//printf("1\n");
+	R3Node* node = info -> node;
+	R2Image* texture = node -> material -> texture;
+	bool isTexture = false;
+	R2Pixel pix;
+	if (texture != NULL)
+	{
+ 		pix = texture -> Pixel(round(u), round(v));
+		isTexture = true;
+	}
+
+	R3Rgb kd = node -> material -> kd;
+	R3Rgb ka = node -> material -> ka;
+	R3Rgb ks = node -> material -> ks;
+	double shininess = node -> material -> shininess;
 	R3Vector N = info -> info.normal;
-	//N.Print();
-	//printf("\n");
-//	if(info -> node -> shape -> type == R3_BOX_SHAPE)
-//		N.Flip();
 	N.Normalize();
 	R3Point intersect = info -> info.position;
 
 	R3Point start = ray -> Start();
 	R3Vector V = start - intersect;
-	//V.Flip();
 	V.Normalize();
 	R3Rgb radiance;
 
 	radiance = ka * scene -> ambient;
 	R3Rgb emission = info -> node -> material -> emission;
-	
+	//R3Rgb reflection(0,0,0);
 
 
 	int NLights = scene -> NLights();
@@ -444,27 +628,30 @@ R3Rgb Phong(R3Scene* scene, R3Ray* ray, R3Intersect* info)
 			L =  -cur_light -> direction;
 		else if (cur_light -> type == R3_POINT_LIGHT)
 		{
-			//N.Flip();
 			L = cur_light -> position - intersect;
-			//L.Flip();
 		}
 		else if (cur_light -> type == R3_SPOT_LIGHT)
 		{
-			//N.Flip();
 			L =  cur_light -> position - intersect;
 		}
-		//L.Flip();
 		L.Normalize();
 		R3Vector R = 2.0 * (L.Dot(N)) * (N) - L;
+
+		bool need_reflect = false;
+		R3Rgb ref_col;
+		if (cur_depth < max_depth)
+		{
+			R3Ray* reflect_ray = new R3Ray(intersect, R); 
+			R3Intersect reflect_info = Intersect_scene(reflect_ray, scene);
+			if (reflect_info.hit == true)
+			{
+				ref_col = Phong(scene, reflect_ray, 
+						&reflect_info, u, v, max_depth, cur_depth + 1, hard_shadow);
+				need_reflect = true;
+			}
+		}
+
 	
-		if (N.Dot(L) > 0)
-		{
-			I0 += kd  * (N.Dot(L));
-		}
-		if (V.Dot(R) > 0)
-		{
-			I0 += ks * pow(V.Dot(R), shininess);
-		}
 		double sc = cur_light -> angle_cutoff;
 		double sd = cur_light -> angle_attenuation;
 
@@ -475,11 +662,9 @@ R3Rgb Phong(R3Scene* scene, R3Ray* ray, R3Intersect* info)
 		if (cur_light -> type == R3_POINT_LIGHT)
 		{
 			I0 *= 1.0/(ca + la * d + qa * d * d);
-			//N.Flip();
 		}
 		else if (cur_light -> type == R3_SPOT_LIGHT)
 		{
-			//N.Flip();
 			double theta = acos((-L).Dot(D));
 			if (theta > sc)
 				I0 *= 0;
@@ -489,20 +674,58 @@ R3Rgb Phong(R3Scene* scene, R3Ray* ray, R3Intersect* info)
 		R3Rgb color = cur_light -> color;
 		I0 *= cur_light -> color;
 
+		if (need_reflect)
+			I0 += ks * ref_col;
+
+
+
+		//cast hard shadow
+		if (hard_shadow)
+		{
+			R3Ray* shadow = new R3Ray(intersect, light_pos);
+			R3Intersect cur_best;
+			cur_best.info.t = DBL_MAX;
+			R3Intersect ret_info;
+			ret_info = Traverse_scene(*shadow, scene -> root, cur_best, shadow->Start());
+
+
+			if(ret_info.info.t < DBL_MAX)
+			{
+				double new_t = shadow->T(light_pos);
+				if (ret_info.info.t < new_t)
+					continue;
+			}
+		}
+
+		if (N.Dot(L) > 0)
+		{
+			if (isTexture)
+				I0 += pix * kd  * (N.Dot(L));
+			else
+				I0 += kd  * (N.Dot(L));
+
+		}
+		if (V.Dot(R) > 0)
+		{
+				I0 += ks * pow(V.Dot(R), shininess);
+		}
+
+
+
 		radiance += I0;
 	}
-	//printf("%f %f %f\n", radiance[0], radiance[1], radiance[2]);
 	
 	radiance += emission;
 	return radiance;
 }
 
-R3Rgb ComputeRadiance(R3Scene* scene, R3Ray* ray, R3Intersect* info)
+R3Rgb ComputeRadiance(R3Scene* scene, R3Ray* ray, R3Intersect* info, double u, double v,
+		                  int max_depth, bool hard_shadow)
 {
 	//R3Ray specular_ray = Specular_ray(ray, info);
 	//R3Ray refractive_ray = Refractive_ray(ray, info);
 
-	R3Rgb radiance = Phong(scene, ray, info);
+	R3Rgb radiance = Phong(scene, ray, info, u, v, max_depth, 0, hard_shadow);
 
 	return radiance;
 }
@@ -537,10 +760,18 @@ R2Image *RenderImage(R3Scene *scene, int width, int height, int max_depth,
 			R3Vector vec = towards + x_weight * tan(xfov) * right + y_weight * tan(yfov) * up;
 			R3Ray* ray = new R3Ray(p0, vec);
 
+
 			R3Intersect info = Intersect_scene(ray, scene);
 			if (info.hit)
 			{
-				R3Rgb radiance = ComputeRadiance(scene, ray, &info);
+				//for texture mapping
+				double u = asin(info.info.normal.X()/M_PI) + 0.5;
+				double v = asin(info.info.normal.Y()/M_PI) + 0.5;
+
+				u *= width;
+				v *= height;
+
+				R3Rgb radiance = ComputeRadiance(scene, ray, &info, u, v, 1, false);
 				//printf("%f %f %f", radiance[0], radiance[1], radiance[2]);
 				R2Pixel* new_pix = new R2Pixel(radiance);
 				image -> Pixel(j,i) = *new_pix; 
