@@ -11,7 +11,7 @@ struct Update_info
 struct R3Intersect
 {
 	Update_info info;
-	R3Node node;
+	R3Node* node;
 	bool hit;
 };
 

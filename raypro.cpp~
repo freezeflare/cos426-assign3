@@ -92,7 +92,6 @@ main(int argc, char **argv)
   int max_depth = 0;
   int num_distributed_rays_per_intersection = 0;
   int num_primary_rays_per_pixel = 1;
-	bool hard_shadow = false;
 
   // Parse arguments 
   while (argc > 0) {
@@ -121,10 +120,6 @@ main(int argc, char **argv)
       num_distributed_rays_per_intersection = atoi(argv[1]);
       argv += 2, argc -= 2;
     }
-		else if (!strcmp(*argv, "-hard_shadow")) {
-			hard_shadow = true;
-			argv += 1, argc -= 1;
-		}
     else {
       // Unrecognized program argument
       fprintf(stderr,  "meshpro: invalid option: %s\n", *argv);
@@ -141,7 +136,7 @@ main(int argc, char **argv)
 
   // Render image
   R2Image *image = RenderImage(scene, width, height, max_depth, 
-    num_primary_rays_per_pixel, num_distributed_rays_per_intersection, hard_shadow);
+    num_primary_rays_per_pixel, num_distributed_rays_per_intersection);
   if (!image) {
     fprintf(stderr, "Did not render image from scene\n");
     exit(-1);
